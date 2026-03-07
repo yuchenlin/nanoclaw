@@ -390,6 +390,10 @@ async function runQuery(
   let lastAssistantUuid: string | undefined;
   let messageCount = 0;
   let resultCount = 0;
+  // Accumulate assistant text across turns — used as fallback when result.result is empty.
+  // Some models (especially via proxy APIs) return empty result.result even when they
+  // produced assistant messages. In that case we send the accumulated assistant text.
+  let pendingAssistantText = '';
 
   // Load global CLAUDE.md as additional system context (shared across all groups)
   const globalClaudeMdPath = '/workspace/global/CLAUDE.md';
@@ -432,7 +436,8 @@ async function runQuery(
         'TeamCreate', 'TeamDelete', 'SendMessage',
         'TodoWrite', 'ToolSearch', 'Skill',
         'NotebookEdit',
-        'mcp__nanoclaw__*'
+        'mcp__nanoclaw__*',
+        'mcp__gmail__*',
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -448,6 +453,10 @@ async function runQuery(
             NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
           },
         },
+        gmail: {
+          command: 'npx',
+          args: ['-y', '@gongrzhe/server-gmail-autoauth-mcp'],
+        },
       },
       hooks: {
         PreCompact: [{ hooks: [createPreCompactHook(containerInput.assistantName)] }],
@@ -461,6 +470,15 @@ async function runQuery(
 
     if (message.type === 'assistant' && 'uuid' in message) {
       lastAssistantUuid = (message as { uuid: string }).uuid;
+      // Accumulate text content from assistant messages as fallback
+      const content = (message as { message?: { content?: unknown } }).message?.content;
+      if (Array.isArray(content)) {
+        const text = content
+          .filter((c: { type: string }) => c.type === 'text')
+          .map((c: { text: string }) => c.text)
+          .join('');
+        if (text) pendingAssistantText += (pendingAssistantText ? '\n' : '') + text;
+      }
     }
 
     if (message.type === 'system' && message.subtype === 'init') {
@@ -476,12 +494,16 @@ async function runQuery(
     if (message.type === 'result') {
       resultCount++;
       const textResult = 'result' in message ? (message as { result?: string }).result : null;
-      log(`Result #${resultCount}: subtype=${message.subtype}${textResult ? ` text=${textResult.slice(0, 200)}` : ''}`);
+      // Fall back to accumulated assistant text if result.result is empty
+      const effectiveResult = textResult || pendingAssistantText || null;
+      log(`Result #${resultCount}: subtype=${message.subtype}${effectiveResult ? ` text=${effectiveResult.slice(0, 200)}` : ''}`);
       writeOutput({
         status: 'success',
-        result: textResult || null,
+        result: effectiveResult,
         newSessionId
       });
+      // Reset accumulated assistant text for next turn
+      pendingAssistantText = '';
     }
   }
 
