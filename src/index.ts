@@ -174,17 +174,6 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     if (!hasTrigger) return true;
   }
 
-  // Handle /new command — clear session so the next message starts fresh
-  const lastMessage = missedMessages[missedMessages.length - 1].content.trim();
-  if (lastMessage === '/new' || lastMessage === '/reset') {
-    deleteSession(group.folder);
-    delete sessions[group.folder];
-    lastAgentTimestamp[chatJid] = missedMessages[missedMessages.length - 1].timestamp;
-    saveState();
-    await channel.sendMessage(chatJid, '🆕 New session started. Previous context cleared.');
-    return true;
-  }
-
   const prompt = formatMessages(missedMessages, TIMEZONE);
 
   // Advance cursor so the piping path in startMessageLoop won't re-fetch
@@ -417,7 +406,9 @@ async function startMessageLoop(): Promise<void> {
                 (m.is_from_me ||
                   isTriggerAllowed(chatJid, m.sender, allowlistCfg)),
             );
-            if (!hasTrigger) continue;
+            if (!hasTrigger) {
+              continue;
+            }
           }
 
           // Pull all messages since lastAgentTimestamp so non-trigger
@@ -526,6 +517,11 @@ async function main(): Promise<void> {
       isGroup?: boolean,
     ) => storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
     registeredGroups: () => registeredGroups,
+    resetSession: (groupFolder: string) => {
+      // Clear the session ID so the container starts fresh
+      sessions[groupFolder] = '';
+      deleteSession(groupFolder);
+    },
   };
 
   // Create and connect all registered channels.

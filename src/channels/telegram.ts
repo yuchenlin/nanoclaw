@@ -3,7 +3,7 @@ import { Bot } from 'grammy';
 import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
 import { readEnvFile } from '../env.js';
 import { logger } from '../logger.js';
-import { storeMessage } from '../db.js';
+import { storeMessage, deleteSession } from '../db.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 import {
   Channel,
@@ -12,10 +12,8 @@ import {
   RegisteredGroup,
 } from '../types.js';
 
-export interface TelegramChannelOpts {
-  onMessage: OnInboundMessage;
-  onChatMetadata: OnChatMetadata;
-  registeredGroups: () => Record<string, RegisteredGroup>;
+export interface TelegramChannelOpts extends ChannelOpts {
+  // Inherits onMessage, onChatMetadata, registeredGroups, resetSession from ChannelOpts
 }
 
 export class TelegramChannel implements Channel {
@@ -53,35 +51,42 @@ export class TelegramChannel implements Channel {
       ctx.reply(`${ASSISTANT_NAME} is online.`);
     });
 
+    // Reset session command — clears conversation history
+    this.bot.command('reset', (ctx) => {
+      const chatJid = `tg:${ctx.chat.id}`;
+      const group = this.opts.registeredGroups()[chatJid];
+      if (!group) {
+        ctx.reply('This chat is not registered with NanoClaw.');
+        return;
+      }
+      if (this.opts.resetSession) {
+        this.opts.resetSession(group.folder);
+      }
+      deleteSession(group.folder);
+      ctx.reply('✓ Session cleared. Starting fresh!');
+      logger.info({ chatJid }, 'Session reset via /reset command');
+    });
+
+    // New session command — same as reset but different name
+    this.bot.command('new', (ctx) => {
+      const chatJid = `tg:${ctx.chat.id}`;
+      const group = this.opts.registeredGroups()[chatJid];
+      if (!group) {
+        ctx.reply('This chat is not registered with NanoClaw.');
+        return;
+      }
+      if (this.opts.resetSession) {
+        this.opts.resetSession(group.folder);
+      }
+      deleteSession(group.folder);
+      ctx.reply('✓ New session started!');
+      logger.info({ chatJid }, 'New session started via /new command');
+    });
+
     this.bot.on('message:text', async (ctx) => {
       const chatJid = `tg:${ctx.chat.id}`;
 
-      // Handle /new and /reset commands to start a new session
-      if (ctx.message.text === '/new' || ctx.message.text === '/reset') {
-        // Store the command so index.ts can process it
-        const timestamp = new Date(ctx.message.date * 1000).toISOString();
-        const sender = ctx.from?.id.toString() || '';
-        const senderName =
-          ctx.from?.first_name ||
-          ctx.from?.username ||
-          ctx.from?.id.toString() ||
-          'Unknown';
-        const msgId = ctx.message.message_id.toString();
-
-        storeMessage({
-          id: msgId,
-          chat_jid: chatJid,
-          sender,
-          sender_name: senderName,
-          content: ctx.message.text,
-          timestamp,
-          is_from_me: false,
-          is_bot_message: false,
-        });
-        return;
-      }
-
-      // Skip other commands
+      // Skip Telegram commands (they're handled by Telegram itself)
       if (ctx.message.text.startsWith('/')) return;
       let content = ctx.message.text;
       const timestamp = new Date(ctx.message.date * 1000).toISOString();
