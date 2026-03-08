@@ -171,9 +171,13 @@ export const THINKING_MESSAGES = [
   '⚡ Electric current of thought...',
 ];
 
-// Helper to get a random thinking message
-export function getRandomThinkingMessage(): string {
-  return THINKING_MESSAGES[
+// Helper to get a random thinking message with optional turn number
+export function getRandomThinkingMessage(turnNumber?: number): string {
+  const message = THINKING_MESSAGES[
     Math.floor(Math.random() * THINKING_MESSAGES.length)
   ];
+  if (turnNumber !== undefined) {
+    return `${message} [turn ${turnNumber}]`;
+  }
+  return message;
 }

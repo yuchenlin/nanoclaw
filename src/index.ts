@@ -63,6 +63,7 @@ let sessions: Record<string, string> = {};
 let registeredGroups: Record<string, RegisteredGroup> = {};
 let lastAgentTimestamp: Record<string, string> = {};
 let messageLoopRunning = false;
+let turnCounters: Record<string, number> = {}; // Track turn count per group folder
 
 const channels: Channel[] = [];
 const queue = new GroupQueue();
@@ -206,8 +207,12 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   let hadError = false;
   let outputSentToUser = false;
 
+  // Increment turn counter for this group
+  turnCounters[group.folder] = (turnCounters[group.folder] || 0) + 1;
+  const currentTurn = turnCounters[group.folder];
+
   // Send a fun "thinking" message immediately when starting
-  await channel.sendMessage(chatJid, getRandomThinkingMessage());
+  await channel.sendMessage(chatJid, getRandomThinkingMessage(currentTurn));
   const ackTimer = setTimeout(() => {}); // placeholder to avoid null checks
 
   const output = await runAgent(group, prompt, chatJid, async (result) => {
@@ -430,6 +435,16 @@ async function startMessageLoop(): Promise<void> {
             lastAgentTimestamp[chatJid] =
               messagesToSend[messagesToSend.length - 1].timestamp;
             saveState();
+
+            // Increment turn counter and send thinking message
+            turnCounters[group.folder] = (turnCounters[group.folder] || 0) + 1;
+            const currentTurn = turnCounters[group.folder];
+            channel
+              .sendMessage(chatJid, getRandomThinkingMessage(currentTurn))
+              ?.catch((err) =>
+                logger.warn({ chatJid, err }, 'Failed to send thinking message'),
+              );
+
             // Show typing indicator while the container processes the piped message
             channel
               .setTyping?.(chatJid, true)
@@ -523,9 +538,13 @@ async function main(): Promise<void> {
         ([, group]) => group.folder === groupFolder,
       )?.[0];
 
-      // Clear the session ID so the container starts fresh
-      sessions[groupFolder] = '';
+      // Delete the session ID so the container starts fresh (undefined, not empty string)
+      // Empty string causes the SDK to resume the most recent session instead of starting new
+      delete sessions[groupFolder];
       deleteSession(groupFolder);
+
+      // Reset the turn counter for this group
+      delete turnCounters[groupFolder];
 
       // Reset the message cursor so old messages aren't re-sent to the agent
       if (chatJid) {

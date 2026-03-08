@@ -31,9 +31,13 @@ export class TelegramChannel implements Channel {
   }
 
   async connect(): Promise<void> {
-    // Read model name from .env
-    const envVars = readEnvFile(['ANTHROPIC_MODEL']);
-    this.modelName = envVars.ANTHROPIC_MODEL || 'claude-opus-4-6';
+    // Read model name from .env at startup
+    try {
+      const envVars = readEnvFile(['ANTHROPIC_MODEL']);
+      this.modelName = envVars.ANTHROPIC_MODEL || 'unknown';
+    } catch {
+      this.modelName = 'unknown';
+    }
 
     this.bot = new Bot(this.botToken);
 
@@ -70,7 +74,7 @@ export class TelegramChannel implements Channel {
       }
       deleteSession(group.folder);
       deleteMessagesForChat(chatJid);
-      ctx.reply('✓ Session cleared. Starting fresh!');
+      ctx.reply(`✓ Session cleared. Starting fresh! Model: ${this.modelName}`);
       logger.info({ chatJid }, 'Session reset via /reset command');
     });
 
@@ -87,7 +91,7 @@ export class TelegramChannel implements Channel {
       }
       deleteSession(group.folder);
       deleteMessagesForChat(chatJid);
-      ctx.reply('✓ New session started!');
+      ctx.reply(`✓ New session started! Model: ${this.modelName}`);
       logger.info({ chatJid }, 'New session started via /new command');
     });
 
