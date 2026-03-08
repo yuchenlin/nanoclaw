@@ -3,7 +3,7 @@ import { Bot } from 'grammy';
 import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
 import { readEnvFile } from '../env.js';
 import { logger } from '../logger.js';
-import { storeMessage, deleteSession } from '../db.js';
+import { storeMessage, deleteSession, deleteMessagesForChat } from '../db.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 import {
   Channel,
@@ -63,6 +63,7 @@ export class TelegramChannel implements Channel {
         this.opts.resetSession(group.folder);
       }
       deleteSession(group.folder);
+      deleteMessagesForChat(chatJid);
       ctx.reply('✓ Session cleared. Starting fresh!');
       logger.info({ chatJid }, 'Session reset via /reset command');
     });
@@ -79,6 +80,7 @@ export class TelegramChannel implements Channel {
         this.opts.resetSession(group.folder);
       }
       deleteSession(group.folder);
+      deleteMessagesForChat(chatJid);
       ctx.reply('✓ New session started!');
       logger.info({ chatJid }, 'New session started via /new command');
     });

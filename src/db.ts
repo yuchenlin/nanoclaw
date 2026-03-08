@@ -363,6 +363,13 @@ export function getMessagesSince(
     .all(chatJid, sinceTimestamp, `${botPrefix}:%`, limit) as NewMessage[];
 }
 
+/**
+ * Delete all messages for a chat (used when resetting session).
+ */
+export function deleteMessagesForChat(chatJid: string): void {
+  db.prepare(`DELETE FROM messages WHERE chat_jid = ?`).run(chatJid);
+}
+
 export function createTask(
   task: Omit<ScheduledTask, 'last_run' | 'last_result'>,
 ): void {
