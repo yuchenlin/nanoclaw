@@ -5,7 +5,7 @@
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
     "outDir": "./dist",
-    "rootDir": ".",
+    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -13,8 +13,12 @@
     "resolveJsonModule": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "paths": {
+      "../.claude/skills/x-integration/*": ["./../.claude/skills/x-integration/*"]
+    }
   },
-  "include": ["src/**/*", ".claude/skills/x-integration/host.ts"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
