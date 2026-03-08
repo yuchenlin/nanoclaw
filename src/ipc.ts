@@ -9,6 +9,7 @@ import { createTask, deleteTask, getTaskById, updateTask } from './db.js';
 import { isValidGroupFolder } from './group-folder.js';
 import { logger } from './logger.js';
 import { RegisteredGroup } from './types.js';
+import { handleXIpc } from '../.claude/skills/x-integration/host.js';
 
 export interface IpcDeps {
   sendMessage: (jid: string, text: string) => Promise<void>;
@@ -450,6 +451,14 @@ export async function processTaskIpc(
       break;
 
     default:
-      logger.warn({ type: data.type }, 'Unknown IPC task type');
+      const handled = await handleXIpc(
+        data,
+        sourceGroup,
+        isMain,
+        DATA_DIR,
+      );
+      if (!handled) {
+        logger.warn({ type: data.type }, 'Unknown IPC task type');
+      }
   }
 }

@@ -173,5 +173,7 @@ export const THINKING_MESSAGES = [
 
 // Helper to get a random thinking message
 export function getRandomThinkingMessage(): string {
-  return THINKING_MESSAGES[Math.floor(Math.random() * THINKING_MESSAGES.length)];
+  return THINKING_MESSAGES[
+    Math.floor(Math.random() * THINKING_MESSAGES.length)
+  ];
 }
