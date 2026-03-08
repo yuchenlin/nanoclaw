@@ -7,6 +7,7 @@ import {
   POLL_INTERVAL,
   TIMEZONE,
   TRIGGER_PATTERN,
+  getRandomThinkingMessage,
 } from './config.js';
 import './channels/index.js';
 import {
@@ -35,6 +36,7 @@ import {
   initDatabase,
   setRegisteredGroup,
   setRouterState,
+  deleteSession,
   setSession,
   storeChatMetadata,
   storeMessage,
@@ -172,6 +174,17 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     if (!hasTrigger) return true;
   }
 
+  // Handle /new command — clear session so the next message starts fresh
+  const lastMessage = missedMessages[missedMessages.length - 1].content.trim();
+  if (lastMessage === '/new' || lastMessage === '/reset') {
+    deleteSession(group.folder);
+    delete sessions[group.folder];
+    lastAgentTimestamp[chatJid] = missedMessages[missedMessages.length - 1].timestamp;
+    saveState();
+    await channel.sendMessage(chatJid, '🆕 New session started. Previous context cleared.');
+    return true;
+  }
+
   const prompt = formatMessages(missedMessages, TIMEZONE);
 
   // Advance cursor so the piping path in startMessageLoop won't re-fetch
@@ -204,9 +217,14 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   let hadError = false;
   let outputSentToUser = false;
 
+  // Send a fun "thinking" message immediately when starting
+  await channel.sendMessage(chatJid, getRandomThinkingMessage());
+  const ackTimer = setTimeout(() => {}); // placeholder to avoid null checks
+
   const output = await runAgent(group, prompt, chatJid, async (result) => {
     // Streaming output callback — called for each agent result
     if (result.result) {
+      clearTimeout(ackTimer);
       const raw =
         typeof result.result === 'string'
           ? result.result
@@ -231,6 +249,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     }
   });
 
+  clearTimeout(ackTimer);
   await channel.setTyping?.(chatJid, false);
   if (idleTimer) clearTimeout(idleTimer);
 
