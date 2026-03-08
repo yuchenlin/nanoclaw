@@ -22,13 +22,19 @@ export class TelegramChannel implements Channel {
   private bot: Bot | null = null;
   private opts: TelegramChannelOpts;
   private botToken: string;
+  private modelName: string;
 
   constructor(botToken: string, opts: TelegramChannelOpts) {
     this.botToken = botToken;
     this.opts = opts;
+    this.modelName = '';
   }
 
   async connect(): Promise<void> {
+    // Read model name from .env
+    const envVars = readEnvFile(['ANTHROPIC_MODEL']);
+    this.modelName = envVars.ANTHROPIC_MODEL || 'claude-opus-4-6';
+
     this.bot = new Bot(this.botToken);
 
     // Command to get chat ID (useful for registration)
