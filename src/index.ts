@@ -518,9 +518,20 @@ async function main(): Promise<void> {
     ) => storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
     registeredGroups: () => registeredGroups,
     resetSession: (groupFolder: string) => {
+      // Find the chat JID for this group folder
+      const chatJid = Object.entries(registeredGroups).find(
+        ([, group]) => group.folder === groupFolder,
+      )?.[0];
+
       // Clear the session ID so the container starts fresh
       sessions[groupFolder] = '';
       deleteSession(groupFolder);
+
+      // Reset the message cursor so old messages aren't re-sent to the agent
+      if (chatJid) {
+        lastAgentTimestamp[chatJid] = '';
+        saveState();
+      }
     },
   };
 
